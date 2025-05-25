@@ -1,33 +1,49 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-from collections import Counter
+import plotly.express as px
+# from scraper.indeed_scraper import scrape_indeed
+# from scraper.glassdoor_scraper import scrape_glassdoor
+
+st.set_page_config(page_title="Real-Time Job Trend Analyzer", layout="wide")
 
 st.title("📊 Real-Time Job Trend Analyzer")
 
-df = pd.read_csv('jobs.csv')
+# Keyword input
+keyword = st.text_input("Enter job keyword (e.g., Data Analyst, Web Developer)", "Data Analyst")
+if st.button("Fetch Latest Data"):
+    with st.spinner("Scraping data..."):
+        df_indeed = scrape_indeed(keyword)
+        df_glassdoor = scrape_glassdoor(keyword)
+        df = pd.concat([df_indeed, df_glassdoor], ignore_index=True)
+        df.to_csv("data/jobs.csv", index=False)
+        st.success("Data updated!")
 
-keyword = st.text_input("Search by Keyword (optional)", "")
+# Load data
+try:
+    df = pd.read_csv("data/jobs.csv")
+except:
+    st.warning("No data found. Click 'Fetch Latest Data'.")
 
-if keyword:
-    df = df[df['title'].str.contains(keyword, case=False, na=False)]
+if not df.empty:
+    st.subheader("Top 5 Most In-Demand Job Titles")
+    top_titles = df['Title'].value_counts().head(5).reset_index()
+    fig = px.bar(top_titles, x='index', y='Title', labels={'index': 'Job Title', 'Title': 'Count'})
+    st.plotly_chart(fig)
 
-st.subheader("Top 5 Job Titles")
-st.bar_chart(df['title'].value_counts().head())
+    st.subheader("Most Frequent Skills")
+    # Skills are placeholder - you can enhance later
+    st.info("Skills scraping is basic in this version.")
 
-st.subheader("Top Cities")
-st.bar_chart(df['location'].value_counts().head())
+    st.subheader("Cities with Highest Job Openings")
+    top_cities = df['Location'].value_counts().head(5).reset_index()
+    fig2 = px.pie(top_cities, names='index', values='Location')
+    st.plotly_chart(fig2)
 
-st.subheader("Top Skills (if available)")
-skills = []
-for s in df['skills'].dropna():
-    skills.extend(s.lower().split(', '))
-skill_counts = Counter(skills)
-skill_df = pd.DataFrame(skill_counts.items(), columns=['Skill', 'Count']).sort_values(by='Count', ascending=False)
-st.dataframe(skill_df.head())
+    st.subheader("Job Postings Over Time (If Available)")
+    if 'Date Posted' in df.columns:
+        st.write(df['Date Posted'].value_counts())
 
-if 'date_posted' in df.columns:
-    st.subheader("Job Posting Trends (if available)")
-    st.bar_chart(df['date_posted'].value_counts())
+    st.dataframe(df)
 
-st.success(f"Total Listings: {len(df)}")
+
+
